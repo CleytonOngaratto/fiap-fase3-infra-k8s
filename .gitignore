@@ -1,0 +1,27 @@
+# Estado do Terraform — NUNCA versionar (contém tudo em texto plano).
+*.tfstate
+*.tfstate.*
+
+# Diretório de trabalho / providers baixados.
+.terraform/
+
+# Config do backend: depende da conta do Learner Lab (gerada por scripts/bootstrap-backend.ps1).
+backend.hcl
+
+# Valores locais. O terraform.tfvars.example É versionado (não casa este padrão) e serve de molde.
+# No CI os mesmos valores chegam por TF_VAR_* a partir das repository variables — ver README.
+terraform.tfvars
+*.auto.tfvars
+
+# Planos salvos e crash logs.
+*.tfplan
+tfplan
+crash.log
+crash.*.log
+
+# Kubeconfig gerado por `aws eks update-kubeconfig -kubeconfig ./...`
+kubeconfig
+kubeconfig.*
+
+# O .terraform.lock.hcl NÃO entra aqui de propósito: ele é versionado para o CI resolver
+# exatamente os mesmos providers que a máquina local.
