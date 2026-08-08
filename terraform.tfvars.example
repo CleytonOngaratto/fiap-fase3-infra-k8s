@@ -1,0 +1,29 @@
+# Copie para terraform.tfvars (gitignored) e ajuste.
+#
+# 🔴 Os DOIS nomes de role são obrigatórios e NÃO têm default.
+#    O lab cria esses roles por CloudFormation, com prefixo e sufixo gerados: o nome real NÃO é
+#    "LabEksClusterRole", e sim algo como "c2215...-LabEksClusterRole-XXXXXXXXXXXX". O sufixo é
+#    único por instância do laboratório e MUDA se o lab for resetado.
+#
+#    Descubra os dois rodando `.\scripts\preflight.ps1` — ele imprime exatamente os valores a usar.
+cluster_role_name = "c2215xxxxxxxxxxxxxxxxxxxxxxxxxxx-LabEksClusterRole-XXXXXXXXXXXX"
+node_role_name    = "c2215xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-LabEksNodeRole-XXXXXXXXXXXX"
+
+# region  = "us-east-1"   # o lab só libera us-east-1 e us-west-2
+# project = "fiap-fase3"
+
+# Modo econômico: sem NAT (~US$1,20/dia a menos), nós vão para as subnets públicas.
+# ⚠️ Trocar depois de aplicado RECRIA o node group (~10 min, todos os pods morrem).
+# enable_nat_gateway = true
+
+# t3.medium (default) = 17 pods/nó. t3.small = 11 e ~1,5GiB, apertado com os DaemonSets do
+# NewRelic do Bloco 4e. O lab permite nano/micro/small/medium/large.
+# node_instance_types = ["t3.medium"]
+
+# ⚠️ Teto do lab: 9 instâncias / 32 vCPU. 20+ DESATIVAM a conta e apagam tudo.
+# node_desired_size = 2
+# node_max_size     = 4
+
+# null = a AWS escolhe a versão default dela, sempre em standard support (US$0,10/h).
+# Versão em extended support custa US$0,60/h — 6x.
+# cluster_version = null
