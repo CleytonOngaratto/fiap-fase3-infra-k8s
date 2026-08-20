@@ -1,0 +1,18 @@
+# Molde do backend.hcl. Na prática você NÃO edita isto à mão:
+# `.\scripts\bootstrap-backend.ps1` cria o bucket e gera o backend.hcl já preenchido.
+#
+# Uso:  terraform init "-backend-config=backend.hcl"
+#       (as aspas importam: o PowerShell quebra o argumento no '=' sem elas)
+
+bucket = "fiap-fase3-tfstate-<ACCOUNT_ID>"
+
+# Uma key por repo, no MESMO bucket: infra-k8s/ · infra-db/ · auth-serverless/
+key = "infra-k8s/terraform.tfstate"
+
+region = "us-east-1"
+
+# Lock nativo do S3 (Terraform >= 1.11). Dispensa a tabela DynamoDB do fluxo antigo —
+# o argumento `dynamodb_table` está deprecado.
+use_lockfile = true
+
+encrypt = true
