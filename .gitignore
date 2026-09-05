@@ -25,3 +25,10 @@ kubeconfig.*
 
 # O .terraform.lock.hcl NÃO entra aqui de propósito: ele é versionado para o CI resolver
 # exatamente os mesmos providers que a máquina local.
+
+# IDE — configuração de máquina, não de projeto. O .idea/ traz workspace.xml (posição de janela,
+# abas abertas) e um .iml de módulo; nada disso descreve o projeto. Os repos app e auth-serverless
+# já ignoram do mesmo jeito — este ficou de fora e o IntelliJ ofereceu 5 arquivos para commit.
+.idea
+*.iml
+.vscode
