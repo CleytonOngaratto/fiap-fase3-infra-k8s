@@ -277,7 +277,15 @@ terraform destroy
 
 Na retomada, `.\scripts\session-start.ps1` imprime a ordem e valida o estado da conta.
 
-## Decisões (resumo — detalhamento nos RFCs/ADRs do Bloco 7)
+## Decisões (resumo)
+
+Detalhamento na documentação arquitetural do repositório da aplicação,
+[`fiap-fase3-app/docs/arquitetura/`](https://github.com/CleytonOngaratto/fiap-fase3-app/tree/main/docs/arquitetura):
+[RFC-001 — nuvem AWS](https://github.com/CleytonOngaratto/fiap-fase3-app/blob/main/docs/arquitetura/rfc/RFC-001-nuvem-aws.md),
+[ADR-001 — contrato por SSM](https://github.com/CleytonOngaratto/fiap-fase3-app/blob/main/docs/arquitetura/adr/ADR-001-ssm-vs-terraform-remote-state.md),
+[ADR-003 — exposição da app](https://github.com/CleytonOngaratto/fiap-fase3-app/blob/main/docs/arquitetura/adr/ADR-003-exposicao-da-app-lb-publico.md),
+[ADR-004 — API do cluster pública](https://github.com/CleytonOngaratto/fiap-fase3-app/blob/main/docs/arquitetura/adr/ADR-004-api-do-cluster-publica.md) e
+[ADR-005 — VPC em recursos crus](https://github.com/CleytonOngaratto/fiap-fase3-app/blob/main/docs/arquitetura/adr/ADR-005-vpc-em-recursos-crus.md).
 
 | Decisão | Motivo |
 |---|---|
