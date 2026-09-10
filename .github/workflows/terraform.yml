@@ -10,11 +10,18 @@
 
 name: Terraform - Infra K8s (VPC + EKS + ECR)
 
+# PR ou merge que só mexe em documentação não roda Terraform. Sem este filtro, corrigir um README
+# exige a sessão do lab de pé: o `plan` do PR falha sem credencial, e o merge dispara um `apply` que
+# RECRIA a infraestrutura inteira. O `workflow_dispatch` abaixo continua alcançando plan/apply/destroy
+# a qualquer momento.
+# ⚠️ O filtro é tudo-ou-nada: um único arquivo fora de `**.md` no PR faz o workflow rodar normalmente.
 on:
   pull_request:
     branches: [ "main" ]
+    paths-ignore: [ "**.md" ]
   push:
     branches: [ "main" ]
+    paths-ignore: [ "**.md" ]
   workflow_dispatch:
     inputs:
       action:

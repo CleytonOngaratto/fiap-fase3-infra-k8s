@@ -14,8 +14,8 @@ os **parâmetros SSM** que os outros três repositórios consomem.
 
 ## Arquitetura
 
-Linha cheia = provisionado por **este** repositório. Tracejado = criado pelos outros blocos, mas
-depende da rede e das tags daqui.
+Linha cheia = provisionado por **este** repositório. Tracejado = criado pelos outros repositórios,
+mas depende da rede e das tags daqui.
 
 ```mermaid
 flowchart TB
@@ -24,7 +24,7 @@ flowchart TB
     SSM["SSM Parameter Store /fase3"]
 
     subgraph PUB["Subnets publicas /20"]
-        CLB["Service LoadBalancer - Bloco 4"]
+        CLB["Service LoadBalancer - repo app"]
         NAT["NAT Gateway - opcional"]
         IGW["Internet Gateway"]
     end
@@ -32,8 +32,8 @@ flowchart TB
     subgraph PRIV["Subnets privadas /20"]
         NODES["Node group - 2x t3.medium AL2023"]
         S3EP["VPC Endpoint S3 - sem custo"]
-        RDS[("RDS PostgreSQL - Bloco 3")]
-        LBD["Lambda na VPC - Bloco 5"]
+        RDS[("RDS PostgreSQL - repo infra-db")]
+        LBD["Lambda na VPC - repo auth-serverless"]
     end
 
     EKS --- NODES
@@ -59,7 +59,7 @@ load balancer — `kubernetes.io/role/elb` nas públicas e `kubernetes.io/role/i
 privadas. Sem elas, um `Service type=LoadBalancer` fica em `<pending>` para sempre.
 
 O control plane roda com os add-ons `vpc-cni`, `kube-proxy`, `coredns` e `metrics-server` — este
-último é pré-requisito do HPA do Bloco 4. O endpoint S3 tira o `docker pull` do caminho pago do NAT,
+último é pré-requisito do HPA da aplicação. O endpoint S3 tira o `docker pull` do caminho pago do NAT,
 já que as camadas de imagem do ECR moram no S3.
 
 ## Pré-requisitos
@@ -86,7 +86,7 @@ Ele responde, em segundos, as perguntas que custariam um apply de 15 minutos:
   diferentes — o README do lab fala em *"Roles ... created for Cluster and Node"*, plural)
 - o role de node tem `AmazonEKSWorkerNodePolicy`, `AmazonEKS_CNI_Policy` e
   `AmazonEC2ContainerRegistryReadOnly`? (a última é a diferença entre app rodando e
-  `ImagePullBackOff` no Bloco 4)
+  `ImagePullBackOff` quando a aplicação for implantada)
 - **`ssm:PutParameter` funciona?** o contrato entre os 4 repos depende disso
 
 Anote o `node_role_name` que ele imprimir — é obrigatório no passo 3.
@@ -116,11 +116,11 @@ terraform apply                                       # ~12-15 min · a partir d
 ### 4. Configurar o CI (uma vez)
 
 ```powershell
-.\scripts\refresh-gh-secrets.ps1 -Org <sua-org> -NodeRoleName <do preflight> -StateBucket <do bootstrap>
+.\scripts\refresh-gh-secrets.ps1 -Org <sua-org> `
+  -ClusterRoleName <do preflight> -NodeRoleName <do preflight> -StateBucket <do bootstrap>
 ```
 
-Depois disso, **a cada nova sessão do lab** basta `.\scripts\refresh-gh-secrets.ps1 -Org <sua-org>`
-(as credenciais expiram em ~4h; as *variables* permanecem).
+Credenciais, variables e o que fazer quando não há `gh` na máquina: **[CI/CD](#cicd)**.
 
 ## Contrato entre repositórios (SSM Parameter Store)
 
@@ -130,14 +130,14 @@ quatro pipelines leitura do bucket inteiro. O SSM expõe só o que foi publicado
 
 | Parâmetro | Conteúdo | Consumido por |
 |---|---|---|
-| `/fase3/vpc/id` | ID da VPC | Blocos 3 e 5 |
-| `/fase3/vpc/cidr` | CIDR da VPC | Bloco 3 (SG do RDS) |
-| `/fase3/vpc/private-subnets` | IDs (StringList) | Blocos 3 e 5 |
-| `/fase3/vpc/public-subnets` | IDs (StringList) | Bloco 5 |
-| `/fase3/eks/cluster-name` | nome do cluster | Bloco 4 (`update-kubeconfig`) |
+| `/fase3/vpc/id` | ID da VPC | `infra-db`, `auth-serverless` |
+| `/fase3/vpc/cidr` | CIDR da VPC | `infra-db` (SG do RDS) |
+| `/fase3/vpc/private-subnets` | IDs (StringList) | `infra-db`, `auth-serverless` |
+| `/fase3/vpc/public-subnets` | IDs (StringList) | `auth-serverless` |
+| `/fase3/eks/cluster-name` | nome do cluster | `app` (`update-kubeconfig`) |
 | `/fase3/eks/cluster-endpoint` | endpoint da API | diagnóstico |
-| `/fase3/eks/node-sg-id` | **security group primário do cluster** | Blocos 3 e 5 |
-| `/fase3/ecr/repo-url` | URL do repositório | Bloco 4 (push/deploy) |
+| `/fase3/eks/node-sg-id` | **security group primário do cluster** | `infra-db`, `auth-serverless` |
+| `/fase3/ecr/repo-url` | URL do repositório | `app` (push/deploy) |
 
 > `node-sg-id` é o `cluster_security_group_id`, não um SG do node group: **node group gerenciado sem
 > launch template não tem SG próprio** — os nós herdam o do cluster. Publicar outro valor aqui faz o
@@ -147,7 +147,7 @@ quatro pipelines leitura do bucket inteiro. O SSM expõe só o que foi publicado
 
 ```powershell
 aws eks update-kubeconfig --region us-east-1 --name fiap-fase3-eks
-kubectl get nodes                    # 2 nodes Ready   <- DoD do bloco
+kubectl get nodes                    # 2 nodes Ready   <- o cluster está pronto
 
 # metrics-server é add-on e depende do node group: pode levar mais de 1 minuto para responder.
 # Retry em vez de sleep fixo (foreach, e não ForEach-Object: `break` dentro do pipeline não
@@ -164,7 +164,7 @@ aws ssm get-parameters-by-path --path /fase3 --recursive --query "Parameters[].N
 
 ### Teste de fumaça — rode uma vez, logo após o cluster subir
 
-Cinco minutos aqui evitam uma sessão perdida nos Blocos 4 e 5.
+Cinco minutos aqui evitam uma sessão perdida ao implantar a aplicação ou a Lambda.
 
 **a) Ciclo completo no ECR privado.** Não use `public.ecr.aws`: pull público é anônimo e não
 exercita o node role, nem o endpoint S3, nem o push. Este ciclo valida os quatro elos de uma vez.
@@ -204,7 +204,8 @@ kubectl get svc smoke-pub -w        # EXTERNAL-IP sai de <pending> em ~3 min?
 kubectl describe svc smoke-pub      # se travar, o evento mostra o AccessDenied
 ```
 
-**c) NLB interno** — responde se o desenho "NLB interno + VPC Link v2" é viável para o Bloco 5:
+**c) NLB interno** — responde se o desenho "NLB interno + VPC Link v2" é viável como alternativa à
+exposição por LoadBalancer público:
 
 ```powershell
 kubectl apply -f k8s-smoke-internal.yaml
@@ -225,7 +226,7 @@ aws elbv2 describe-target-health --region us-east-1 --target-group-arn $tg `
   --query "TargetHealthDescriptions[].[Target.Id,TargetHealth.State]" --output table
 ```
 
-Os dois targets devem aparecer como `healthy`. Para o Bloco 5 o hairpinning é irrelevante: as ENIs
+Os dois targets devem aparecer como `healthy`. Para o API Gateway o hairpinning é irrelevante: as ENIs
 do VPC Link não são targets do NLB.
 
 **Limpeza — não pule:** ELB deixa ENI na subnet e trava o `destroy` da VPC.
@@ -238,6 +239,48 @@ aws ecr batch-delete-image --repository-name car-workshop-api --image-ids imageT
 Se o teste (b) falhar, o plano B é NodePort — mas seja honesto quanto ao custo: **~15 min**, porque
 exige `enable_nat_gateway = false` (que **recria o node group**) *e* uma regra de ingress no
 security group liberando `30000-32767`, que hoje não existe neste repo.
+
+## CI/CD
+
+[`.github/workflows/terraform.yml`](.github/workflows/terraform.yml):
+
+| Gatilho | O que roda |
+|---|---|
+| `pull_request` → `main` | `fmt -check` → `init` → `validate` → `plan` (**nunca aplica**) |
+| `push` → `main` (merge do PR) | idem + `apply -auto-approve` |
+| `workflow_dispatch` | `plan` \| `apply` \| `destroy` — o `destroy` é a alavanca de custo entre sessões |
+
+**PR ou merge que só toca arquivos `.md` não roda o workflow** (`paths-ignore`). Sem isso, corrigir um
+README exigiria a sessão do lab de pé — e pior: o merge dispararia um `apply` que **recria os 34
+recursos** sem ninguém ter pedido. O filtro é tudo-ou-nada: um único arquivo fora de `**.md` no mesmo
+PR faz o workflow rodar normalmente.
+
+O workflow precisa de **seis valores no repositório**, e nenhum deles tem default:
+
+| Nome | Tipo | Origem | Muda quando |
+|---|---|---|---|
+| `AWS_ACCESS_KEY_ID` | secret | painel *AWS Details* do Learner Lab | a cada sessão (~4h) |
+| `AWS_SECRET_ACCESS_KEY` | secret | idem | a cada sessão |
+| `AWS_SESSION_TOKEN` | secret | idem — **o mais esquecido**; sem ele o erro vem como `InvalidClientTokenId`, que parece chave errada | a cada sessão |
+| `TF_STATE_BUCKET` | variable | `scripts/bootstrap-backend.ps1` | uma vez por conta |
+| `CLUSTER_ROLE_NAME` | variable | `scripts/preflight.ps1` | **a cada reset do lab** |
+| `NODE_ROLE_NAME` | variable | `scripts/preflight.ps1` | **a cada reset do lab** |
+
+> 🔴 **`refresh-gh-secrets.ps1 -Org <org>` sozinho NÃO atualiza as duas variables de role.** Ele só as
+> escreve quando recebe `-ClusterRoleName`/`-NodeRoleName`. Os sufixos são gerados por CloudFormation
+> e mudam a cada **reset** do laboratório (não a cada sessão): depois de um reset, rode o
+> `preflight.ps1` e regrave as duas, ou o `apply` morre no `data "aws_iam_role"`.
+
+> ⚠️ **O script exige o [`gh` CLI](https://cli.github.com) autenticado** (`gh auth login`) — ele
+> aborta de saída se `gh auth status` falhar. Sem o `gh` instalado, o caminho é o painel de cada
+> repositório: *Settings → Secrets and variables → Actions*. São 3 secrets × 4 repositórios por
+> sessão, então instalar o `gh` se paga rápido.
+
+> ⚠️ **Secret e variable têm de ser de _repositório_**, não de *Environment*: este workflow não
+> declara `environment:`, e secret de Environment simplesmente não chega até ele.
+
+> ⚠️ **Não marque este workflow como status check obrigatório** no ruleset: ele depende da credencial
+> temporária do laboratório e travaria todo merge feito fora do horário do lab.
 
 ## Custo e destruição
 
@@ -258,12 +301,41 @@ security group liberando `30000-32767`, que hoje não existe neste repo.
 
 **Ordem de destruição entre repos: 1 → 4 → 3 → 2.** Deixam ENI nas subnets e travam o `destroy` da
 VPC: os **ELB** de Services `type=LoadBalancer`, as **ENIs da Lambda** (levam até ~20 min para
-liberar) e o **VPC Link** do API Gateway, se o Bloco 5 for por esse caminho.
+liberar) e o **VPC Link** do API Gateway, caso a exposição seja por esse caminho.
 
 ```powershell
-kubectl delete svc car-workshop-api -n car-workshop   # a partir do Bloco 4
+kubectl delete svc car-workshop-api -n car-workshop   # se a aplicação estiver implantada
 terraform destroy
 ```
+
+### `destroy-all.ps1` — teardown na ordem, com auditoria no fim
+
+[`scripts/destroy-all.ps1`](scripts/destroy-all.ps1) faz os quatro passos na ordem 1 → 4 → 3 → 2,
+apaga o Service `LoadBalancer` antes de encostar na VPC e, **no fim, confere a conta categoria por
+categoria** — saindo com código diferente de zero se sobrou qualquer coisa que fatura (EKS, EC2, NAT,
+RDS, snapshots, ELB v1/v2, VPCs não-default, EIPs, ENIs, EBS, ECR, API Gateways, Lambdas, SGs).
+
+```powershell
+.\scripts\destroy-all.ps1            # confirma antes de agir
+.\scripts\destroy-all.ps1 -Force     # sem confirmação
+```
+
+Essa auditoria final é a razão de o script existir, e não uma formalidade: em 2026-09-02 o teardown
+foi feito à mão em quatro passos e **parou no terceiro** — o control plane, os 2 nós e o NAT ficaram
+23,7 h ligados, ~US$ 7 de um budget de US$ 50. Um ciclo completo de subir-e-derrubar custa ~US$ 0,40,
+então o teardown incompleto custou o equivalente a 17 ciclos. O problema não era o preço de
+provisionar; era um teardown manual de quatro passos falhar no meio sem ninguém perceber.
+
+> 🔴 **Dois pré-requisitos, e os dois falham fora da máquina de origem.** O script resolve a raiz do
+> projeto como **duas pastas acima de `scripts/`** e espera os quatro repositórios como **pastas
+> irmãs** (`fiap-fase3-app`, `-infra-db`, `-auth-serverless` ao lado deste). E cada repositório de
+> infraestrutura precisa do seu `backend.hcl`, que é **gitignored** — quem clonar só este repositório
+> não tem os dos outros dois. Nesse caso o script falha alto, com mensagem dizendo qual `backend.hcl`
+> falta, e a auditoria final continua valendo; mas ele **não** é um teardown de um clique num clone
+> novo. Para uso avulso, `terraform destroy` em cada repositório, na ordem acima.
+
+> ⚠️ **`-SkipAudit` existe só para depuração.** Usá-lo desliga exatamente a parte que motivou o
+> script.
 
 > ⚠️ **`terraform destroy` não é atômico e morre junto com o terminal.** Ele leva ~10 min (o control
 > plane sozinho leva ~4) e destrói em ordem de dependência — a VPC é a última. Se você fechar o
@@ -293,7 +365,7 @@ Detalhamento na documentação arquitetural do repositório da aplicação,
 | Subnets `/20` | reserva de crescimento e compatibilidade com *prefix delegation* do VPC CNI (que reserva `/28` por nó) |
 | 1 NAT (não 1 por AZ) | ~US$1,20/dia cada; perde HA de saída, aceitável em ambiente destruído entre sessões |
 | VPC Endpoint S3 (Gateway) | grátis, e tira o `docker pull` do caminho pago do NAT |
-| `t3.medium` × 2 | o VPC CNI limita pods por ENI: `t3.small` = 11 pods e ~1,5GiB — apertado com os DaemonSets do NewRelic (Bloco 4e) |
+| `t3.medium` × 2 | o VPC CNI limita pods por ENI: `t3.small` = 11 pods e ~1,5GiB — apertado com os DaemonSets do New Relic |
 | `node_max_size = 4` | o lab permite 9 instâncias/32 vCPU, e **20+ desativam a conta** |
 | `cluster_version = null` | a AWS escolhe uma versão em *standard support*; *extended support* custa 6× mais |
 | Roles por `data source` | o lab bloqueia `iam:CreateRole`; o EKS usa `LabEksClusterRole`, **não** a `LabRole` |
@@ -305,15 +377,17 @@ Detalhamento na documentação arquitetural do repositório da aplicação,
 | Sintoma | Causa provável / solução |
 |---|---|
 | `terraform init/plan` com erro **x509** | interceptação TLS local (antivírus com HTTPS scanning). Desligue o scan de HTTPS |
-| `ExpiredToken` / `InvalidClientTokenId` | sessão do lab expirou (~4h). Renove e rode `scripts/refresh-gh-secrets.ps1` |
+| `ExpiredToken` / `InvalidClientTokenId` | sessão do lab expirou (~4h). Renove e rode `scripts/refresh-gh-secrets.ps1` — ou recole os 3 secrets no painel, se não houver `gh` na máquina (ver [CI/CD](#cicd)) |
+| `gh nao autenticado` ao rodar `refresh-gh-secrets.ps1` | o script exige o [`gh` CLI](https://cli.github.com) logado (`gh auth login`). Sem ele, o caminho é *Settings → Secrets and variables → Actions* em cada repositório |
+| `apply` do CI falha em `data "aws_iam_role"` depois de um **reset** do lab | os sufixos de `LabEksClusterRole`/`LabEksNodeRole` mudaram. Rode `scripts/preflight.ps1` e regrave as variables `CLUSTER_ROLE_NAME` e `NODE_ROLE_NAME` — o `-Org` sozinho não as atualiza |
 | `node_role_name is required` | rode `scripts/preflight.ps1` e preencha o `terraform.tfvars` (ou a variable `NODE_ROLE_NAME` no CI) |
 | Cluster criado mas `kubectl` dá **Unauthorized** | `bootstrap_cluster_creator_admin_permissions` dá admin a quem *criou*. Se o apply foi por outro principal: `aws eks create-access-entry --cluster-name fiap-fase3-eks --principal-arn <arn> --type STANDARD` + `associate-access-policy` com `AmazonEKSClusterAdminPolicy`. **O `aws-auth` não é plano B** — editá-lo já exige acesso ao cluster |
 | Node **NotReady** no início da sessão | as EC2 foram paradas no fim da sessão anterior e o ASG pode tê-las substituído. `terraform apply` reconcilia; ou termine as instâncias e deixe o ASG recriar |
 | `unsupported Kubernetes version` | `cluster_version` fixado numa versão que saiu do catálogo. Volte para `null` |
-| HPA em `<unknown>` (Bloco 4) | metrics-server ausente. Confira `enable_metrics_server`; fallback: `kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml` |
+| HPA da aplicação em `<unknown>` | metrics-server ausente. Confira `enable_metrics_server`; fallback: `kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml` |
 | `destroy` travado em subnet/VPC | ENI remanescente de ELB, Lambda ou VPC Link. Apague os Services `type=LoadBalancer` e respeite a ordem 1→4→3→2 |
 | `docker login` no ECR dá **400 Bad Request** (e o push seguinte, "no basic auth credentials") | **Só no PowerShell do Windows.** O pipe entre dois executáveis nativos passa pela conversão de texto do PS e corrompe o token. Capture numa variável e passe por argumento: `$pw = aws ecr get-login-password --region us-east-1` seguido de `docker login --username AWS --password $pw <registry>`. No CI (ubuntu/bash) o `--password-stdin` funciona normalmente |
-| `curl` num **NLB interno** de dentro do cluster dá timeout | Não é falha: NLB não suporta *hairpinning* — um cliente que também é target não se conecta através dele. Verifique pela saúde dos targets (`aws elbv2 describe-target-health`). Para o Bloco 5 é irrelevante: as ENIs do VPC Link não são targets |
+| `curl` num **NLB interno** de dentro do cluster dá timeout | Não é falha: NLB não suporta *hairpinning* — um cliente que também é target não se conecta através dele. Verifique pela saúde dos targets (`aws elbv2 describe-target-health`). Para o API Gateway é irrelevante: as ENIs do VPC Link não são targets |
 | `Error acquiring the state lock` / `ConditionalCheckFailed` | Lock preso de uma execução interrompida. Ver **Recuperação de destroy interrompido** abaixo |
 | `Failed to persist state to backend` + `errored.tfstate` | Idem: a rede caiu (ou a máquina desligou) antes de o Terraform gravar o state. As operações na AWS **já aconteceram**; só o registro falhou |
 
