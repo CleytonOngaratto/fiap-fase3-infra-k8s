@@ -84,7 +84,7 @@ resource "aws_eks_addon" "coredns" {
   depends_on = [aws_eks_node_group.default]
 }
 
-# Sem metrics-server o HPA do Bloco 4 fica <unknown> e nunca escala.
+# Sem metrics-server o HPA da aplicacao fica <unknown> e nunca escala.
 resource "aws_eks_addon" "metrics_server" {
   count = var.enable_metrics_server ? 1 : 0
 

@@ -103,7 +103,7 @@ if ($nodeRole) {
         Write-Ok "  AmazonEC2ContainerRegistryReadOnly"
     }
     else {
-        Write-Warn2 "  AmazonEC2ContainerRegistryReadOnly ausente — pull do ECR privado vai falhar no Bloco 4 (ImagePullBackOff)."
+        Write-Warn2 "  AmazonEC2ContainerRegistryReadOnly ausente — pull do ECR privado vai falhar ao implantar a aplicacao (ImagePullBackOff)."
     }
 }
 else {

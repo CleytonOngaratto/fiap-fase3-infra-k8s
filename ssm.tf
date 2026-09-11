@@ -1,4 +1,4 @@
-# Contrato entre os 4 repositórios (F8): cada repo publica o que cria e lê o resto via
+# Contrato entre os 4 repositórios: cada repo publica o que cria e lê o resto via
 # data "aws_ssm_parameter". Nada de ARN/endpoint hardcodado entre repos.
 
 resource "aws_ssm_parameter" "vpc_id" {
@@ -38,7 +38,7 @@ resource "aws_ssm_parameter" "cluster_endpoint" {
 }
 
 # Tem que ser o cluster_security_group_id: node group gerenciado sem launch template não tem SG
-# próprio, os nós herdam este. Publicar outro valor faz o RDS do Bloco 3 recusar conexão dos pods.
+# próprio, os nós herdam este. Publicar outro valor faz o RDS recusar conexão dos pods.
 resource "aws_ssm_parameter" "node_sg_id" {
   name  = "/fase3/eks/node-sg-id"
   type  = "String"

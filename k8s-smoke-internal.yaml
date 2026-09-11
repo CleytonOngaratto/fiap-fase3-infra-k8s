@@ -6,7 +6,7 @@
 # o resultado como "a tag internal-elb não funciona", que é a conclusão errada.
 #
 # Este arquivo NÃO é a app. É descartável: existe para responder, no dia 1, se o desenho
-# "NLB interno + VPC Link v2" é viável nesta conta antes de o Bloco 5 depender disso.
+# "NLB interno + VPC Link v2" é viável nesta conta antes de o API Gateway depender disso.
 apiVersion: v1
 kind: Service
 metadata:

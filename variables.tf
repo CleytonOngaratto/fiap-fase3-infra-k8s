@@ -23,7 +23,7 @@ variable "public_subnet_cidrs" {
 }
 
 variable "private_subnet_cidrs" {
-  description = "Subnets privadas, uma por AZ. Aqui moram os nós, o RDS (Bloco 3) e a Lambda (Bloco 5)."
+  description = "Subnets privadas, uma por AZ. Aqui moram os nós, o RDS e a Lambda de autenticação."
   type        = list(string)
   default     = ["10.0.128.0/20", "10.0.144.0/20"]
 }
@@ -67,7 +67,7 @@ variable "cluster_public_access_cidrs" {
 variable "node_instance_types" {
   description = <<-EOT
     O lab libera nano/micro/small/medium/large. t3.medium porque o VPC CNI limita pods por ENI:
-    t3.small dá 11 pods e ~1,5GiB, apertado com os DaemonSets do NewRelic (Bloco 4e).
+    t3.small dá 11 pods e ~1,5GiB, apertado com os DaemonSets do New Relic.
   EOT
   type        = list(string)
   default     = ["t3.medium"]
@@ -98,7 +98,7 @@ variable "node_disk_size" {
 }
 
 variable "enable_metrics_server" {
-  description = "Add-on metrics-server. Sem ele o HPA do Bloco 4 fica <unknown> e nunca escala."
+  description = "Add-on metrics-server. Sem ele o HPA da aplicação fica <unknown> e nunca escala."
   type        = bool
   default     = true
 }

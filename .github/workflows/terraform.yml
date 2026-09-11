@@ -126,7 +126,7 @@ jobs:
         run: terraform apply -auto-approve tfplan
 
       # Só manual. É como a infra é derrubada ao fim da sessão sem depender da máquina do dono.
-      # ⚠️ A partir do Bloco 4: apague antes os Services do tipo LoadBalancer — o ELB deixa ENI nas
+      # ⚠️ Se a aplicacao estiver implantada: apague antes os Services do tipo LoadBalancer — o ELB deixa ENI nas
       # subnets e o destroy da VPC trava.
       - name: Terraform destroy
         if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy'
