@@ -5,7 +5,7 @@ data "aws_availability_zones" "available" {
 resource "aws_vpc" "main" {
   cidr_block = var.vpc_cidr
 
-  # Sem os dois, o endpoint do RDS (Bloco 3) não resolve dentro da VPC.
+  # Sem os dois, o endpoint do RDS não resolve dentro da VPC.
   enable_dns_hostnames = true
   enable_dns_support   = true
 
