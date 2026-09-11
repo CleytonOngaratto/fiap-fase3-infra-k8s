@@ -60,9 +60,15 @@ function Invoke-Native {
     return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Lines = @($out); Text = ($out -join "`n") }
 }
 
+# $script:LastAwsOk distingue "a consulta respondeu e nao veio nada" de "a consulta FALHOU". Sem essa
+# distincao a auditoria final mente: com o token expirado toda chamada retorna $null, e $null chega no
+# laco como se fosse recurso ausente — foi o que aconteceu em 2026-09-10, quando o relatorio afirmou
+# "EKS clusters : vazio" com o control plane de pe faturando. Quem le a saida do script nao tem como
+# saber; por isso a falha precisa aparecer, e nao virar silencio.
 function Get-AwsValue {
     param([Parameter(Mandatory)][string[]]$Query)
     $r = Invoke-Native -Exe "aws" -NativeArgs ($Query + @("--region", $Region, "--output", "text"))
+    $script:LastAwsOk = ($r.ExitCode -eq 0)
     if ($r.ExitCode -ne 0) { return $null }
     return ($r.Text -replace "`r", "").Trim()
 }
@@ -180,6 +186,12 @@ $checks = [ordered]@{
 $leftovers = @()
 foreach ($name in $checks.Keys) {
     $value = Get-AwsValue $checks[$name]
+    if (-not $script:LastAwsOk) {
+        # NAO e "vazio". E "nao sei" — e num script de custo, "nao sei" tem de doer como sobra.
+        Write-Fail "$name : CONSULTA FALHOU (credencial expirada?) - resultado NAO confiavel"
+        $leftovers += $name
+        continue
+    }
     if ([string]::IsNullOrWhiteSpace($value) -or $value -eq "None") {
         Write-Ok "$name : vazio"
     }
