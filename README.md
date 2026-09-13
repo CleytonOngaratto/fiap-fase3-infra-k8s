@@ -12,9 +12,9 @@ O que este repo provisiona: **VPC** (2 AZs, subnets públicas e privadas, IGW, N
 S3), **cluster EKS** com node group gerenciado e add-ons, **registry ECR** para a imagem da app, e
 os **parâmetros SSM** que os outros três repositórios consomem.
 
-git checkout -b docs/api-reference> 📖 **Referência da API:** este repositório é só infraestrutura e não expõe API própria. A API do
+> 📖 **Referência da API:** este repositório é só infraestrutura e não expõe API própria. A API do
 > sistema é a da aplicação, documentada no **Swagger UI** embutido nela, em
-> `/carworkshop/v1/swagger-ui` — veja
+> `/swagger-ui/` — veja
 > [fiap-fase3-app](https://github.com/CleytonOngaratto/fiap-fase3-app#documentação-da-api).
 
 ## Arquitetura
